@@ -3,7 +3,7 @@ import { defineComponent } from 'vue';
 
 export default defineComponent({
   name: 'CTest2',
-  // isAutoRoute: false,
+  // isAutoRegisterRoute: false,
 
   dynamicRouteParams: ['id', 'type'],
 

@@ -1,17 +1,13 @@
 import _ from "lodash";
-import { DefineComponent } from "vue";
 import { RouteRecordRawProp } from "@/router/types";
 import { prefixStr } from "./constants";
 import { getKeyPathStartPos } from "./utils";
-
-type CustomComponent = DefineComponent & {
-  name?: string;
-  isAutoRoute?: boolean;
-  dynamicRouteParams?: string[];
-  redirectUri?: string;
-};
-
-const blackRouterList: string[] = ["test", "v-template"];
+// type
+import { DefineComponent } from "vue";
+const blackRouterList: string[] = [
+  // "test",
+  // "v-template",
+];
 
 const routerFilter = (keyPath: string) => {
   const keyPathArr = keyPath.split("/");
@@ -20,13 +16,15 @@ const routerFilter = (keyPath: string) => {
 };
 
 const getModules = () => {
-  // pages下的.vue文件
-  const components = import.meta.glob("../../pages/**/*.vue");
-  let res: Record<string, () => Promise<{ [key: string]: CustomComponent }>> =
+  // .vue files in 'pages' folders
+  const modules = import.meta.glob("../../pages/**/*.vue");
+  let res: Record<string, () => Promise<{ [key: string]: DefineComponent }>> =
     {};
-  for (const key in components) {
+  if (!modules) return res;
+
+  for (const key in modules) {
     if (!routerFilter(key) && !key.includes("components")) {
-      Reflect.set(res, key, components[key]);
+      Reflect.set(res, key, modules[key]);
     }
   }
   return res;
@@ -34,7 +32,9 @@ const getModules = () => {
 
 const getComponents = () => {
   const components = import.meta.globEager("../../pages/**/*.vue");
-  let res: Record<string, { [key: string]: CustomComponent }> = {};
+  let res: Record<string, { [key: string]: DefineComponent }> = {};
+  if (!components) return res;
+
   for (const key in components) {
     if (!key.includes("components")) {
       Reflect.set(res, key, components[key]);
@@ -44,7 +44,7 @@ const getComponents = () => {
 };
 
 /**
- * 对 routes 进行序列化
+ * Serialize routes
  * @param routes
  * @returns
  */
@@ -69,16 +69,21 @@ const getRoutes = (): RouteRecordRawProp[] => {
     components = getComponents();
 
   for (const key in modules) {
+    if (!components[key]) return [];
+
     const keyPathArr = key.split("/");
     const path = keyPathArr.slice(getKeyPathStartPos(keyPathArr) + 1, -1);
 
     let finalPath = path.join("/children/").split("/");
 
-    const component = components[key]?.default,
-      { name, isAutoRoute = true, dynamicRouteParams, redirectUri } = component;
+    const {
+      name,
+      isAutoRegisterRoute = true,
+      dynamicRouteParams,
+      redirectUri,
+    } = components[key]?.default;
 
-    // 是否需要自动注册
-    if (isAutoRoute) {
+    if (isAutoRegisterRoute) {
       const templateRoute = {
         key: `${prefixStr}${path.join("-")}`,
         path: `/${path.join("/")}`,
@@ -86,19 +91,34 @@ const getRoutes = (): RouteRecordRawProp[] => {
         component: modules[key],
       };
 
-      // 动态路由
-      if (dynamicRouteParams?.length) {
+      // isDynamicRoute
+      const isDynamicRoute = !!dynamicRouteParams?.length;
+      if (isDynamicRoute) {
         templateRoute.path = `/${path.join("/")}/:${dynamicRouteParams.join(
           "/:"
         )}`;
       }
 
       if (redirectUri) {
-        const rePath = `/${path.join("/")}/${redirectUri}`;
-        Reflect.set(templateRoute, "redirect", rePath);
-      }
+        // 动态路由重定向
+        if (isDynamicRoute) {
+          console.error(components[key]?.default);
+          const redirectTemplateRoute = {
+            key: `redirect-${path.join("-")}`,
+            path: `/${path.join("/")}`,
+            name: key,
+          };
 
-      // lodash的set方法不能直接向数组加值，需要对routes进行序列化
+          const rePath = `/${path.join("/")}/${redirectUri}`;
+          Reflect.set(redirectTemplateRoute, "redirect", rePath);
+          _.set(routeList, "", redirectTemplateRoute);
+        } else {
+          // Ordinary Route
+          const rePath = `/${path.join("/")}/${redirectUri}`;
+          Reflect.set(templateRoute, "redirect", rePath);
+        }
+        console.log(redirectUri);
+      }
       _.set(routeList, finalPath, templateRoute);
     }
   }
