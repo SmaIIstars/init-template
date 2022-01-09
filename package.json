@@ -6,7 +6,8 @@
   "author": "smallstars",
   "license": "ISC",
   "scripts": {
-    "commit": "git add . && git-cz"
+    "commit": "yarn cc && git add . && git-cz",
+    "cc": "node ./script/code-check.js"
   },
   "dependencies": {
     "commitizen": "^4.2.4",
